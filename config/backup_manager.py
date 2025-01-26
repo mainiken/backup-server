@@ -5,15 +5,56 @@ from datetime import datetime
 import os
 from pathlib import Path
 import fnmatch
+from rich.console import Console
 
 class BackupManager:
     def __init__(self):
         self.settings = settings
         self.logger = setup_logger()
         self.telegram = TelegramNotifier(settings.telegram_token, settings.chat_id)
+        self.console = Console()
         self.start_time = None
         self.end_time = None
         self.file_count = 0
+        
+        # Стандартные исключения
+        self.default_excludes = [
+            '*venv*',
+            '*virtualenv*',
+            '*.pyc',
+            '__pycache__',
+            '.git',
+            'node_modules',
+            '.env',
+            '*.log',
+            '*.tmp',
+            '*.temp',
+            '.idea',
+            '.vscode',
+            '*.swp',
+            '*.swo',
+            '.DS_Store',
+            'Thumbs.db'
+        ]
+
+    def should_exclude(self, path):
+        """Проверяет, должен ли путь быть исключен из бэкапа"""
+        path_str = str(path)
+        
+        # Проверяем стандартные исключения
+        for pattern in self.default_excludes:
+            if fnmatch.fnmatch(path_str, pattern) or \
+               any(fnmatch.fnmatch(part, pattern) for part in Path(path_str).parts):
+                return True
+                
+        # Проверяем дополнительные исключения из настроек
+        if hasattr(self.settings, 'additional_excludes'):
+            for pattern in self.settings.additional_excludes:
+                if fnmatch.fnmatch(path_str, pattern) or \
+                   any(fnmatch.fnmatch(part, pattern) for part in Path(path_str).parts):
+                    return True
+                    
+        return False
 
     def _get_file_size(self, file_path):
         """Возвращает размер файла в человекочитаемом формате"""
@@ -25,14 +66,13 @@ class BackupManager:
         return f"{size_bytes:.2f}TB"
 
     def create_backup(self):
+        """Создает резервную копию"""
         self.start_time = datetime.now()
         self.logger.info(f"Начало бэкапа: {self.start_time}")
         
-        # Путь к директории, которую нужно бэкапить
-        backup_source = os.getenv('BACKUP_SOURCE')
-        
-        if not backup_source:
+        if not self.settings.backup_source:
             self.logger.error("Не указан BACKUP_SOURCE в .env файле")
+            self.console.print("❌ Ошибка: не указан путь источника в .env файле", style="red")
             return None
         
         # Создаем директорию для бэкапов если её нет
@@ -43,11 +83,26 @@ class BackupManager:
         backup_file = self.settings.backup_dir / f"backup_{timestamp}.tar.gz"
         
         try:
+            self.console.print(f"📂 Создание бэкапа из: {self.settings.backup_source}", style="yellow")
             with tarfile.open(backup_file, "w:gz") as tar:
-                # Бэкапим только указанную директорию
-                self.logger.info(f"Начало бэкапа директории: {backup_source}")
-                tar.add(backup_source, arcname=os.path.basename(backup_source))
-                self.file_count += 1
+                # Рекурсивно добавляем файлы, пропуская исключения
+                for root, dirs, files in os.walk(self.settings.backup_source):
+                    # Фильтруем директории
+                    dirs[:] = [d for d in dirs if not self.should_exclude(os.path.join(root, d))]
+                    
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        if not self.should_exclude(file_path):
+                            try:
+                                tar.add(file_path, 
+                                      arcname=os.path.relpath(file_path, 
+                                                            str(self.settings.backup_source)))
+                                self.file_count += 1
+                                if self.file_count % 100 == 0:
+                                    self.console.print(f"📊 Обработано файлов: {self.file_count}", 
+                                                     style="blue")
+                            except Exception as e:
+                                self.logger.error(f"Ошибка при добавлении {file_path}: {e}")
                 
             self.end_time = datetime.now()
             duration = self.end_time - self.start_time
@@ -64,10 +119,12 @@ class BackupManager:
             )
             
             self.logger.info(report)
+            self.console.print(report, style="green")
             return backup_file
                 
         except Exception as e:
             self.logger.error(f"Ошибка создания бэкапа: {e}")
+            self.console.print(f"❌ Ошибка создания бэкапа: {e}", style="red")
             return None
 
     def cleanup_old_backups(self):
@@ -83,66 +140,24 @@ class BackupManager:
             for backup in backups[self.settings.keep_backups:]:
                 backup.unlink()
                 self.logger.info(f"Удален старый бэкап: {backup.name}")
+                self.console.print(f"🗑️ Удален старый бэкап: {backup.name}", style="yellow")
         except Exception as e:
             self.logger.error(f"Ошибка при очистке старых бэкапов: {e}")
 
     def run(self):
-        """Основной метод для запуска бэкапа"""
+        """Запускает процесс создания бэкапа"""
         try:
-            self.logger.info("Запуск процесса бэкапа")
+            self.console.print("🚀 Запуск процесса бэкапа...", style="blue")
             backup_file = self.create_backup()
             
             if backup_file:
-                # Отправляем файл в Telegram
+                self.console.print("📤 Отправка файла в Telegram...", style="blue")
                 self.telegram.send_file(backup_file)
-                # Очищаем старые бэкапы
                 self.cleanup_old_backups()
-                self.logger.info("Процесс бэкапа успешно завершен")
+                self.console.print("✅ Процесс бэкапа успешно завершен!", style="green")
             else:
-                self.logger.error("Не удалось создать бэкап")
+                self.console.print("❌ Не удалось создать бэкап", style="red")
                 
         except Exception as e:
             self.logger.error(f"Ошибка при выполнении бэкапа: {e}")
-            self.telegram.send_message(f"❌ Ошибка при выполнении бэкапа: {e}")
-
-    def configure_schedule(self):
-        """Настройка расписания бэкапов"""
-        try:
-            from crontab import CronTab
-            
-            cron = CronTab(user=True)
-            
-            # Очищаем существующие задачи для этого скрипта
-            cron.remove_all(comment='backup_script')
-            
-            # Получаем путь к текущему скрипту
-            script_path = Path(__file__).parent.parent / 'main.py'
-            
-            # Создаем новую задачу
-            job = cron.new(command=f'python3 {script_path} --run',
-                          comment='backup_script')
-            
-            # Запрашиваем расписание
-            schedule = input("""Выберите расписание:
-1. Ежедневно
-2. Еженедельно
-3. Ежемесячно
-Ваш выбор (1-3): """)
-            
-            if schedule == "1":
-                hour = input("Введите час (0-23): ")
-                job.setall(f'0 {hour} * * *')
-            elif schedule == "2":
-                day = input("Введите день недели (0-6, где 0 = воскресенье): ")
-                hour = input("Введите час (0-23): ")
-                job.setall(f'0 {hour} * * {day}')
-            elif schedule == "3":
-                day = input("Введите день месяца (1-31): ")
-                hour = input("Введите час (0-23): ")
-                job.setall(f'0 {hour} {day} * *')
-            
-            cron.write()
-            self.logger.info("Расписание успешно настроено")
-            
-        except Exception as e:
-            self.logger.error(f"Ошибка при настройке расписания: {e}")
+            self.console.print(f"❌ Ошибка при выполнении бэкапа: {
