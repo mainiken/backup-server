@@ -16,31 +16,27 @@ def setup_logger():
     return logging.getLogger(__name__)
 
 class TelegramNotifier:
-    def __init__(self, token, chat_id):
-        self.token = token
-        self.chat_id = chat_id
-        self.logger = setup_logger()
-        
-    def send_message(self, text):
-        try:
-            self.logger.info(f"Отправка сообщения в Telegram")
-            response = requests.post(
-                f'https://api.telegram.org/bot{self.token}/sendMessage',
-                data={'chat_id': self.chat_id, 'text': text}
-            )
-            response.raise_for_status()
-            self.logger.info("Сообщение успешно отправлено")
-        except Exception as e:
-            self.logger.error(f"Ошибка отправки сообщения: {str(e)}", exc_info=True)
-
     def send_file(self, file_path):
         try:
             self.logger.info(f"Начинаю отправку файла {file_path}")
+            
+            # Проверяем существование файла
+            if not os.path.exists(file_path):
+                self.logger.error(f"Файл не найден: {file_path}")
+                return
+                
             with open(file_path, 'rb') as file:
                 self.logger.info("Файл открыт, отправляю в Telegram...")
+                
+                # Добавляем caption для различения файлов
+                caption = "Backup file" if str(file_path).endswith('.tar.gz') else "Log file"
+                
                 response = requests.post(
                     f'https://api.telegram.org/bot{self.token}/sendDocument',
-                    data={'chat_id': self.chat_id},
+                    data={
+                        'chat_id': self.chat_id,
+                        'caption': caption
+                    },
                     files={'document': file}
                 )
                 self.logger.info(f"Ответ от Telegram: {response.status_code}")
