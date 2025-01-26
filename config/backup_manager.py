@@ -28,6 +28,7 @@ class BackupManager:
         self.console.print("\nОстановка процесса бэкапа...", style="yellow")
         
     def create_backup(self):
+        self.file_count = 0  # Сброс счетчика для нового бэкапа
         self.start_time = datetime.now()
         self.logger.info(f"Начало бэкапа: {self.start_time}")
         
@@ -47,11 +48,15 @@ class BackupManager:
                     if not self.running:
                         raise InterruptedError("Процесс остановлен пользователем")
                     
+                    # Фильтруем директории и файлы
+                    dirs[:] = [d for d in dirs if not any(fnmatch.fnmatch(d, pattern) for pattern in self.settings.exclude_dirs)]
+                    
                     for file in files:
                         file_path = os.path.join(root, file)
                         if not any(fnmatch.fnmatch(file_path, pattern) for pattern in self.settings.exclude_dirs):
                             try:
-                                tar.add(file_path)
+                                arcname = os.path.relpath(file_path, self.settings.backup_source)
+                                tar.add(file_path, arcname=arcname)
                                 self.file_count += 1
                                 if self.file_count % 100 == 0:
                                     self.console.print(f"📊 Обработано файлов: {self.file_count}", style="blue")
@@ -63,6 +68,8 @@ class BackupManager:
         except Exception as e:
             self.logger.error(f"Ошибка создания бэкапа: {e}")
             self.console.print(f"❌ Ошибка создания бэкапа: {e}", style="red")
+            if backup_file.exists():
+                backup_file.unlink()
             return None
 
     def _get_file_size(self, file_path):
@@ -90,15 +97,25 @@ class BackupManager:
 
     def start_scheduled_backup(self):
         self.running = True
+        self.console.print(f"Запуск автоматического бэкапа каждые {self.settings.backup_interval} часов", style="blue")
         try:
             while self.running:
-                self.run()
+                now = datetime.now()
+                backup_time = datetime.strptime(self.settings.backup_time, "%H:%M").time()
+                next_backup = datetime.combine(now.date(), backup_time)
+                
+                if now.time() > backup_time:
+                    next_backup = datetime.combine(now.date() + timedelta(days=1), backup_time)
+                
+                if now < next_backup:
+                    wait_seconds = (next_backup - now).seconds
+                    self.console.print(f"Следующий бэкап в {self.settings.backup_time}", style="blue")
+                    time.sleep(wait_seconds)
+                
                 if self.running:
-                    self.console.print(f"Следующий бэкап через {self.settings.backup_interval} часов", style="blue")
-                    for _ in range(self.settings.backup_interval):
-                        if not self.running:
-                            break
-                        time.sleep(3600)
+                    self.run()
+                    time.sleep(self.settings.backup_interval * 3600)
+                    
         except KeyboardInterrupt:
             self.running = False
             self.console.print("\nАвтобэкап остановлен", style="yellow")
@@ -117,8 +134,10 @@ class BackupManager:
                 
                 self.console.print("📤 Отправка в Telegram...", style="blue")
                 self.telegram.send_file(backup_file, caption=report)
-                self.cleanup_old_backups()
                 self.console.print("✅ Процесс бэкапа успешно завершен!", style="green")
+                
+                # Очистка после успешной отправки
+                self.cleanup_old_backups()
             else:
                 self.console.print("❌ Не удалось создать бэкап", style="red")
                 
