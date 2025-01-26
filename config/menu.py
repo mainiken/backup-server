@@ -22,11 +22,11 @@ class BackupMenu:
 
         """
         self.console.print(ascii_art, style="grey35")
-        self.console.print("\nby @mainecrypto", style="bold blue")
-        self.console.print(f"\nВремя бэкапа: {settings.backup_time}", style="yellow")
-        self.console.print(f"Интервал: {settings.backup_interval} часов\n", style="yellow")
-        self.console.print("1. 🚀 Запустить бэкап сейчас", style="green")
-        self.console.print("2. ⏰ Запустить по расписанию", style="blue")
+        self.console.print("\nby @mainecrypto", style="green_yellow")
+        self.console.print(f"\nВремя бэкапа: {settings.backup_time}", style="green_yellow")
+        self.console.print(f"Интервал: {settings.backup_interval} часов\n", style="grey85")
+        self.console.print("1. 🚀 Запустить бэкап сейчас", style="grey85")
+        self.console.print("2. ⏰ Запустить по расписанию", style="grey85")
 
     def run(self):
         while True:
