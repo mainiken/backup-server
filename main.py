@@ -6,7 +6,6 @@ def main():
     if not all([settings.telegram_token, settings.chat_id]):
         print("Ошибка: проверьте настройки в файле .env")
         sys.exit(1)
-    
     menu = BackupMenu()
     menu.run()
 
