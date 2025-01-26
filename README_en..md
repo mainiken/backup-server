@@ -1,4 +1,4 @@
-# 📦 Server Backup System  
+# 📦 Server Backup LITE  
 **A simple backup system with Telegram integration.**
 
 [🇷🇺 Русский](README.md) | [🇬🇧 English](README_en.md)
@@ -22,7 +22,7 @@
 
 1. **Clone the repository:**  
    ```bash
-   git clone https://github.com/yourusername/backup-server.git
+   git clone https://github.com/mainiken/backup-server.git
    cd backup-server
    ```
 
