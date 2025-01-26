@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 import fnmatch
 from rich.console import Console
-from rich.prompt import Prompt
 import logging
 import time
 import signal
@@ -58,22 +57,7 @@ class BackupManager:
                                     self.console.print(f"📊 Обработано файлов: {self.file_count}", style="blue")
                             except Exception as e:
                                 self.logger.error(f"Ошибка при добавлении {file_path}: {e}")
-                
-            self.end_time = datetime.now()
-            duration = self.end_time - self.start_time
             
-            report = (
-                f"📦 Бэкап завершён\n"
-                f"📝 Файл: {backup_file.name}\n"
-                f"📊 Размер: {self._get_file_size(backup_file)}\n"
-                f"🕒 Начало: {self.start_time}\n"
-                f"🕕 Окончание: {self.end_time}\n"
-                f"⏱ Длительность: {duration}\n"
-                f"📑 Обработано файлов: {self.file_count}"
-            )
-            
-            self.logger.info(report)
-            self.console.print(report, style="green")
             return backup_file
                 
         except Exception as e:
@@ -110,8 +94,8 @@ class BackupManager:
             while self.running:
                 self.run()
                 if self.running:
-                    self.console.print(f"Следующий бэкап через 24 часа", style="blue")
-                    for _ in range(24):
+                    self.console.print(f"Следующий бэкап через {self.settings.backup_interval} часов", style="blue")
+                    for _ in range(self.settings.backup_interval):
                         if not self.running:
                             break
                         time.sleep(3600)
@@ -119,32 +103,20 @@ class BackupManager:
             self.running = False
             self.console.print("\nАвтобэкап остановлен", style="yellow")
 
-    def configure_schedule(self):
-        interval = Prompt.ask(
-            "Введите интервал в часах между бэкапами",
-            default="24"
-        )
-        try:
-            interval = int(interval)
-            if interval < 1:
-                raise ValueError("Интервал должен быть положительным числом")
-            self.console.print(f"Установлен интервал {interval} часов", style="green")
-            return interval
-        except ValueError as e:
-            self.console.print(f"❌ Ошибка: {str(e)}", style="red")
-            return 24
-
     def run(self):
         try:
             self.console.print("🚀 Запуск процесса бэкапа...", style="blue")
             backup_file = self.create_backup()
             
             if backup_file:
-                self.console.print("📤 Отправка файла в Telegram...", style="blue")
-                self.telegram.send_file(backup_file)
-                if self.settings.log_file.exists():
-                    self.console.print("📄 Отправка лога в Telegram...", style="blue")
-                    self.telegram.send_file(self.settings.log_file)
+                report = (
+                    f"📝 Файл: {backup_file.name}\n"
+                    f"📊 Размер: {self._get_file_size(backup_file)}\n"
+                    f"📑 Обработано файлов: {self.file_count}"
+                )
+                
+                self.console.print("📤 Отправка в Telegram...", style="blue")
+                self.telegram.send_file(backup_file, caption=report)
                 self.cleanup_old_backups()
                 self.console.print("✅ Процесс бэкапа успешно завершен!", style="green")
             else:
