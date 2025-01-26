@@ -17,16 +17,16 @@ class BackupMenu:
 ██████╔╝██║  ██║╚██████╗██║  ██╗╚██████╔╝██║     
 ╚═════╝ ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝     
 """
-        # Печатаем ASCII art синим цветом
+
+        self.console.print("\nby @mainecrypto", style="bold cyan")
+        
         self.console.print(backup_art, style="bold blue")
         
-        # Печатаем пункты меню разными цветами
-        self.console.print("\n1. 🚀 Запустить бэкап", style="green")
-        self.console.print("2. ⚙️  Настроить расписание", style="yellow")
-        self.console.print("3. ❌ Выход", style="red")
+        self.console.print("\n1. 🚀 Запустить бэкап", style="white")
+        self.console.print("2. ⚙️  Настроить расписание", style="white")
+        self.console.print("3. ❌ Выход", style="white")
         
-        # Печатаем подпись голубым цветом
-        self.console.print("\nby @mainecrypto", style="bold cyan")
+
     
     def run(self):
         while True:
