@@ -8,28 +8,12 @@ class BackupMenu:
         self.console = Console()
         self.backup_manager = BackupManager()
     
-    def animated_rainbow_print(self, text, duration=1):
-        """Печатает текст с анимированным радужным эффектом"""
+    def rainbow_print(self, text):
+        """Печатает текст, используя разные цвета для каждой строки"""
         colors = ["red", "yellow", "green", "cyan", "blue", "magenta"]
         lines = text.splitlines()
-        start_time = time.time()
-        
-        while time.time() - start_time < duration:
-            self.console.clear()
-            colors = colors[1:] + [colors[0]] 
-            
-            for i, line in enumerate(lines):
-                if line.strip():
-                    color = colors[i % len(colors)]
-                    self.console.print(line, style=f"bold {color}")
-                else:
-                    self.console.print(line)
-            
-            time.sleep(0.1)
-        
-        self.console.clear()
         for i, line in enumerate(lines):
-            if line.strip():
+            if line.strip():  # Пропускаем пустые строки
                 color = colors[i % len(colors)]
                 self.console.print(line, style=f"bold {color}")
             else:
