@@ -27,62 +27,46 @@ class BackupManager:
                     return True
         return False
 
-    def create_backup(self):
-        self.start_time = datetime.now()
-        self.logger.info(f"Начало бэкапа: {self.start_time}")
+def create_backup(self):
+    self.start_time = datetime.now()
+    self.logger.info(f"Начало бэкапа: {self.start_time}")
+    
+    # Путь к директории, которую нужно бэкапить
+    backup_source = os.getenv('BACKUP_SOURCE', '/home/your_username')  # Добавьте в .env
+    
+    # Создаем директорию для бэкапов если её нет
+    self.settings.backup_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Формируем имя файла бэкапа
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    backup_file = self.settings.backup_dir / f"backup_{timestamp}.tar.gz"
+    
+    try:
+        with tarfile.open(backup_file, "w:gz") as tar:
+            # Бэкапим только указанную директорию
+            tar.add(backup_source, arcname=os.path.basename(backup_source))
+            self.file_count += 1
+            
+        self.end_time = datetime.now()
+        duration = self.end_time - self.start_time
         
-        # Создаем директорию для бэкапов если её нет
-        self.settings.backup_dir.mkdir(parents=True, exist_ok=True)
+        # Формируем отчет
+        report = (
+            f"📦 Бэкап завершён\n"
+            f"📝 Файл: {backup_file.name}\n"
+            f"📊 Размер: {self._get_file_size(backup_file)}\n"
+            f"🕒 Начало: {self.start_time}\n"
+            f"🕕 Окончание: {self.end_time}\n"
+            f"⏱ Длительность: {duration}\n"
+            f"📑 Обработано файлов: {self.file_count}"
+        )
         
-        # Формируем имя файла бэкапа
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-        backup_file = self.settings.backup_dir / f"backup_{timestamp}.tar.gz"
-        
-        try:
-            with tarfile.open(backup_file, "w:gz") as tar:
-                # Начинаем с корневой директории
-                for root, dirs, files in os.walk('/'):
-                    # Пропускаем исключенные директории
-                    if self.should_exclude(root):
-                        continue
-                    
-                    # Фильтруем список директорий
-                    dirs[:] = [d for d in dirs if not self.should_exclude(os.path.join(root, d))]
-                    
-                    for file in files:
-                        full_path = os.path.join(root, file)
-                        if not self.should_exclude(full_path):
-                            try:
-                                tar.add(full_path)
-                                self.file_count += 1
-                                if self.file_count % 1000 == 0:
-                                    self.logger.info(f"Обработано файлов: {self.file_count}")
-                            except Exception as e:
-                                self.logger.error(f"Ошибка при добавлении {full_path}: {e}")
-
-            self.end_time = datetime.now()
-            duration = self.end_time - self.start_time
+        self.logger.info(report)
+        return backup_file
             
-            # Формируем отчет
-            report = (
-                f"📦 Бэкап завершён\n"
-                f"📝 Файл: {backup_file.name}\n"
-                f"📊 Размер: {self._get_file_size(backup_file)}\n"
-                f"🕒 Начало: {self.start_time}\n"
-                f"🕕 Окончание: {self.end_time}\n"
-                f"⏱ Длительность: {duration}\n"
-                f"📑 Обработано файлов: {self.file_count}"
-            )
-            
-            self.logger.info(report)
-            self.telegram.send_message(report)
-            
-            return backup_file
-            
-        except Exception as e:
-            self.logger.error(f"Ошибка создания бэкапа: {e}")
-            self.telegram.send_message(f"❌ Ошибка создания бэкапа: {e}")
-            return None
+    except Exception as e:
+        self.logger.error(f"Ошибка создания бэкапа: {e}")
+        return None
 
     def _get_file_size(self, file_path):
         """Возвращает размер файла в человекочитаемом формате"""
