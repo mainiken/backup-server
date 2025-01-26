@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import fnmatch
 from rich.console import Console
+from rich.prompt import Prompt
 import logging
 import time
 import signal
@@ -20,7 +21,6 @@ class BackupManager:
         self.end_time = None
         self.file_count = 0
         self.running = True
-        
         signal.signal(signal.SIGINT, self.handle_shutdown)
         signal.signal(signal.SIGTERM, self.handle_shutdown)
 
@@ -95,9 +95,9 @@ class BackupManager:
                 self.settings.backup_dir.glob("backup_*.tar.gz"),
                 key=lambda x: x.stat().st_mtime,
                 reverse=True
-            )
+            )[self.settings.keep_backups:]
             
-            for backup in backups[self.settings.keep_backups:]:
+            for backup in backups:
                 backup.unlink()
                 self.logger.info(f"Удален старый бэкап: {backup.name}")
                 self.console.print(f"🗑️ Удален старый бэкап: {backup.name}", style="yellow")
@@ -114,7 +114,7 @@ class BackupManager:
                     for _ in range(24):
                         if not self.running:
                             break
-                        time.sleep(3600)  # 1 час
+                        time.sleep(3600)
         except KeyboardInterrupt:
             self.running = False
             self.console.print("\nАвтобэкап остановлен", style="yellow")
@@ -128,7 +128,6 @@ class BackupManager:
             interval = int(interval)
             if interval < 1:
                 raise ValueError("Интервал должен быть положительным числом")
-            
             self.console.print(f"Установлен интервал {interval} часов", style="green")
             return interval
         except ValueError as e:
@@ -143,6 +142,9 @@ class BackupManager:
             if backup_file:
                 self.console.print("📤 Отправка файла в Telegram...", style="blue")
                 self.telegram.send_file(backup_file)
+                if self.settings.log_file.exists():
+                    self.console.print("📄 Отправка лога в Telegram...", style="blue")
+                    self.telegram.send_file(self.settings.log_file)
                 self.cleanup_old_backups()
                 self.console.print("✅ Процесс бэкапа успешно завершен!", style="green")
             else:
