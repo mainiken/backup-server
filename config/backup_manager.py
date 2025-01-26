@@ -7,7 +7,8 @@ from pathlib import Path
 import fnmatch
 from rich.console import Console
 import logging
-from crontab import CronTab
+import time
+import signal
 
 class BackupManager:
     def __init__(self):
@@ -18,35 +19,15 @@ class BackupManager:
         self.start_time = None
         self.end_time = None
         self.file_count = 0
+        self.running = True
         
-        self.default_excludes = [
-            '*venv*', '*virtualenv*', '*.pyc', '__pycache__',
-            '.git', 'node_modules', '.env', '*.log', '*.tmp',
-            '*.temp', '.idea', '.vscode', '*.swp', '*.swo',
-            '.DS_Store', 'Thumbs.db'
-        ]
+        signal.signal(signal.SIGINT, self.handle_shutdown)
+        signal.signal(signal.SIGTERM, self.handle_shutdown)
 
-    def should_exclude(self, path):
-        path_str = str(path)
-        for pattern in self.default_excludes:
-            if fnmatch.fnmatch(path_str, pattern) or \
-               any(fnmatch.fnmatch(part, pattern) for part in Path(path_str).parts):
-                return True
-        if hasattr(self.settings, 'additional_excludes'):
-            for pattern in self.settings.additional_excludes:
-                if fnmatch.fnmatch(path_str, pattern) or \
-                   any(fnmatch.fnmatch(part, pattern) for part in Path(path_str).parts):
-                    return True
-        return False
-
-    def _get_file_size(self, file_path):
-        size_bytes = os.path.getsize(file_path)
-        for unit in ['B', 'KB', 'MB', 'GB']:
-            if size_bytes < 1024:
-                return f"{size_bytes:.2f}{unit}"
-            size_bytes /= 1024
-        return f"{size_bytes:.2f}TB"
-
+    def handle_shutdown(self, signum, frame):
+        self.running = False
+        self.console.print("\nОстановка процесса бэкапа...", style="yellow")
+        
     def create_backup(self):
         self.start_time = datetime.now()
         self.logger.info(f"Начало бэкапа: {self.start_time}")
@@ -64,13 +45,14 @@ class BackupManager:
             self.console.print(f"📂 Создание бэкапа из: {self.settings.backup_source}", style="yellow")
             with tarfile.open(backup_file, "w:gz") as tar:
                 for root, dirs, files in os.walk(self.settings.backup_source):
-                    dirs[:] = [d for d in dirs if not self.should_exclude(os.path.join(root, d))]
+                    if not self.running:
+                        raise InterruptedError("Процесс остановлен пользователем")
                     
                     for file in files:
                         file_path = os.path.join(root, file)
-                        if not self.should_exclude(file_path):
+                        if not any(fnmatch.fnmatch(file_path, pattern) for pattern in self.settings.exclude_dirs):
                             try:
-                                tar.add(file_path, arcname=os.path.relpath(file_path, str(self.settings.backup_source)))
+                                tar.add(file_path)
                                 self.file_count += 1
                                 if self.file_count % 100 == 0:
                                     self.console.print(f"📊 Обработано файлов: {self.file_count}", style="blue")
@@ -99,6 +81,14 @@ class BackupManager:
             self.console.print(f"❌ Ошибка создания бэкапа: {e}", style="red")
             return None
 
+    def _get_file_size(self, file_path):
+        size_bytes = os.path.getsize(file_path)
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if size_bytes < 1024:
+                return f"{size_bytes:.2f}{unit}"
+            size_bytes /= 1024
+        return f"{size_bytes:.2f}TB"
+
     def cleanup_old_backups(self):
         try:
             backups = sorted(
@@ -114,20 +104,36 @@ class BackupManager:
         except Exception as e:
             self.logger.error(f"Ошибка при очистке старых бэкапов: {e}")
 
-    def configure_schedule(self):
+    def start_scheduled_backup(self):
+        self.running = True
         try:
-            cron = CronTab(user=True)
-            cron.remove_all(comment='backup')
-            job = cron.new(command=f'python3 {os.path.abspath(__file__)} --run', comment='backup')
-            job.hour.on(0)
-            cron.write()
-            self.console.print("✅ Расписание настроено на ежедневное выполнение в 00:00", style="green")
-        except Exception as e:
-            self.logger.error(f"Ошибка настройки расписания: {e}")
-            self.console.print(f"❌ Ошибка настройки расписания: {e}", style="red")
+            while self.running:
+                self.run()
+                if self.running:
+                    self.console.print(f"Следующий бэкап через 24 часа", style="blue")
+                    for _ in range(24):
+                        if not self.running:
+                            break
+                        time.sleep(3600)  # 1 час
+        except KeyboardInterrupt:
+            self.running = False
+            self.console.print("\nАвтобэкап остановлен", style="yellow")
 
-    def run_scheduled(self):
-        self.configure_schedule()
+    def configure_schedule(self):
+        interval = Prompt.ask(
+            "Введите интервал в часах между бэкапами",
+            default="24"
+        )
+        try:
+            interval = int(interval)
+            if interval < 1:
+                raise ValueError("Интервал должен быть положительным числом")
+            
+            self.console.print(f"Установлен интервал {interval} часов", style="green")
+            return interval
+        except ValueError as e:
+            self.console.print(f"❌ Ошибка: {str(e)}", style="red")
+            return 24
 
     def run(self):
         try:
