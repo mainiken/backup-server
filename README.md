@@ -1,7 +1,7 @@
 # 📦 Maine Server Backup  
 **Простая система резервного копирования фермы с отправкой в Telegram.**
 
-[🇷🇺 Русский](README-RU.md) | [🇬🇧 English](README_en.md)
+[🇷🇺 Русский](README.md) | [🇬🇧 English](README_en.md)
 
 [<img src="https://res.cloudinary.com/dkgz59pmw/image/upload/v1736756459/knpk224-28px-market_ksivis.svg" alt="Market Link" width="200">](https://t.me/MaineMarketBot?start=8HVF7S9K)
 [<img src="https://res.cloudinary.com/dkgz59pmw/image/upload/v1736756459/knpk224-28px-channel_psjoqn.svg" alt="Channel Link" width="200">](https://t.me/+vpXdTJ_S3mo0ZjIy)
