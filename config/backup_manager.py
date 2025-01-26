@@ -1,7 +1,7 @@
 from .settings import settings
 from .telegram import TelegramNotifier
 import tarfile
-from datetime import datetime, timedelta  
+from datetime import datetime
 import os
 from pathlib import Path
 import fnmatch
@@ -28,7 +28,7 @@ class BackupManager:
         self.console.print("\nОстановка процесса бэкапа...", style="yellow")
         
     def create_backup(self):
-        self.file_count = 0  # Сброс счетчика для нового бэкапа
+        self.file_count = 0
         self.start_time = datetime.now()
         self.logger.info(f"Начало бэкапа: {self.start_time}")
         
@@ -48,7 +48,6 @@ class BackupManager:
                     if not self.running:
                         raise InterruptedError("Процесс остановлен пользователем")
                     
-                    # Фильтруем директории и файлы
                     dirs[:] = [d for d in dirs if not any(fnmatch.fnmatch(d, pattern) for pattern in self.settings.exclude_dirs)]
                     
                     for file in files:
@@ -62,7 +61,6 @@ class BackupManager:
                                     self.console.print(f"📊 Обработано файлов: {self.file_count}", style="blue")
                             except Exception as e:
                                 self.logger.error(f"Ошибка при добавлении {file_path}: {e}")
-            
             return backup_file
                 
         except Exception as e:
@@ -82,40 +80,26 @@ class BackupManager:
 
     def cleanup_old_backups(self):
         try:
-            backups = sorted(
-                self.settings.backup_dir.glob("backup_*.tar.gz"),
-                key=lambda x: x.stat().st_mtime,
-                reverse=True
-            )[self.settings.keep_backups:]
+            backups = list(self.settings.backup_dir.glob("backup_*.tar.gz"))
+            backups.sort(key=lambda x: x.stat().st_mtime, reverse=True)
             
-            for backup in backups:
-                backup.unlink()
-                self.logger.info(f"Удален старый бэкап: {backup.name}")
-                self.console.print(f"🗑️ Удален старый бэкап: {backup.name}", style="yellow")
+            if len(backups) > self.settings.keep_backups:
+                for backup in backups[self.settings.keep_backups:]:
+                    self.console.print(f"🗑️ Удаляю старый бэкап: {backup.name}", style="yellow")
+                    backup.unlink()
+                    self.logger.info(f"Удален старый бэкап: {backup.name}")
         except Exception as e:
             self.logger.error(f"Ошибка при очистке старых бэкапов: {e}")
+            self.console.print(f"❌ Ошибка при очистке старых бэкапов: {e}", style="red")
 
     def start_scheduled_backup(self):
         self.running = True
-        self.console.print(f"Запуск автоматического бэкапа каждые {self.settings.backup_interval} часов", style="blue")
         try:
             while self.running:
-                now = datetime.now()
-                backup_time = datetime.strptime(self.settings.backup_time, "%H:%M").time()
-                next_backup = datetime.combine(now.date(), backup_time)
-                
-                if now.time() > backup_time:
-                    next_backup = datetime.combine(now.date() + timedelta(days=1), backup_time)
-                
-                if now < next_backup:
-                    wait_seconds = (next_backup - now).seconds
-                    self.console.print(f"Следующий бэкап в {self.settings.backup_time}", style="blue")
-                    time.sleep(wait_seconds)
-                
+                self.run()
                 if self.running:
-                    self.run()
+                    self.console.print(f"Следующий бэкап через {self.settings.backup_interval} часов", style="blue")
                     time.sleep(self.settings.backup_interval * 3600)
-                    
         except KeyboardInterrupt:
             self.running = False
             self.console.print("\nАвтобэкап остановлен", style="yellow")
@@ -134,10 +118,8 @@ class BackupManager:
                 
                 self.console.print("📤 Отправка в Telegram...", style="blue")
                 self.telegram.send_file(backup_file, caption=report)
-                self.console.print("✅ Процесс бэкапа успешно завершен!", style="green")
-                
-                # Очистка после успешной отправки
                 self.cleanup_old_backups()
+                self.console.print("✅ Процесс бэкапа успешно завершен!", style="green")
             else:
                 self.console.print("❌ Не удалось создать бэкап", style="red")
                 
