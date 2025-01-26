@@ -22,7 +22,7 @@
 
 1. **Клонируйте репозиторий:**  
    ```bash
-   git clone https://github.com/yourusername/backup-server.git
+   git clone https://github.com/mainiken/backup-server.git
    cd backup-server
    ```
 
