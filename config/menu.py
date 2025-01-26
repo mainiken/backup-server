@@ -1,13 +1,11 @@
 from rich.console import Console
 from rich.prompt import Prompt
 from .backup_manager import BackupManager
-import time
 
 class BackupMenu:
     def __init__(self):
         self.console = Console()
         self.backup_manager = BackupManager()
-                self.console.print(line)
     
     def show_menu(self):
         # ASCII art для BACKUP
@@ -19,10 +17,13 @@ class BackupMenu:
 ██████╔╝██║  ██║╚██████╗██║  ██╗╚██████╔╝██║     
 ╚═════╝ ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝     
 """
-        self.animated_rainbow_print(backup_art)
+        # Печатаем ASCII art белым цветом
+        self.console.print(backup_art, style="bold white")
         
+        # Печатаем подпись
         self.console.print("\nby @mainecrypto", style="bold cyan")
         
+        # Печатаем меню
         self.console.print("\n1. 🚀 Запустить бэкап", style="green")
         self.console.print("2. ⚙️  Настроить расписание", style="green")
         self.console.print("3. ❌ Выход", style="red")
