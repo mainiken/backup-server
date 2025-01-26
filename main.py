@@ -1,6 +1,8 @@
 from config.menu import BackupMenu
 from config.settings import settings
+from config.backup_manager import BackupManager
 import sys
+import
 
 def main():
     if not all([settings.telegram_token, settings.chat_id]):
