@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  backup:
+    build: .
+    volumes:
+      - ${BACKUP_SOURCE}:/data/source:ro
+      - ${BACKUP_DIR}:/data/backups
+    environment:
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - CHAT_ID=${CHAT_ID}
+      - BACKUP_SOURCE=/data/source
+      - BACKUP_DIR=/data/backups
+      - KEEP_BACKUPS=${KEEP_BACKUPS:-3}
+      - BACKUP_TIME=${BACKUP_TIME:-00:00}
+      - BACKUP_INTERVAL=${BACKUP_INTERVAL:-24}
+    restart: unless-stopped
