@@ -7,14 +7,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-ENV TELEGRAM_TOKEN=""
-ENV CHAT_ID=""
-ENV BACKUP_SOURCE="/data/source"
-ENV BACKUP_DIR="/data/backups"
-ENV KEEP_BACKUPS="3"
-ENV BACKUP_TIME="00:00"
-ENV BACKUP_INTERVAL="24"
+# Создаем директории для бэкапов и логов
+RUN mkdir -p /data/source /data/backups /app/logs
 
-VOLUME ["/data/source", "/data/backups"]
+# Используем переменные окружения из .env
+ENV $(cat .env | xargs)
+
+VOLUME ["/data/source", "/data/backups", "/app/logs"]
 
 CMD ["python", "main.py", "--a", "2"]
