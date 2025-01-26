@@ -15,9 +15,10 @@ class Settings:
         self.backup_source = os.getenv('BACKUP_SOURCE')
         self.backup_dir = Path(os.getenv('BACKUP_DIR', '/root/backups'))
         self.keep_backups = int(os.getenv('KEEP_BACKUPS', 3))
+        self.backup_time = os.getenv('BACKUP_TIME', '00:00')
+        self.backup_interval = int(os.getenv('BACKUP_INTERVAL', 24))
         self.log_dir = Path('logs')
         self.log_file = self.log_dir / 'backup.log'
-        self.keep_logs = True
         self.exclude_dirs = [
             '/proc', '/sys', '/dev', '/run', '/media', '/mnt', '/tmp', 
             str(self.backup_dir), '*venv*', '*.pyc', '__pycache__', '.git',
